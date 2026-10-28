@@ -100,19 +100,3 @@ python3 implementation/scripts/generate_plots.py
 
 ---
 
-## 🎤 Presentation Summary Cheat Sheet
-
-* **Muhammed Nishad (Slides 1–5)**:
-  - **The Context**: Edge CDNs (Cloudflare, Akamai) terminate QUIC, but certificates have lookup/signing delay $\Delta t$.
-  - **The Status Quo (Wait-for-Certificate)**: Server waits for cert. Client initial timer is inflated: $\text{PTO} \approx 3 \times (\text{RTT} + \Delta t)$. Packet loss recovery is severely delayed.
-  - **The Paper's Proposed Fix (Instant ACK)**: Server immediately sends standalone `Initial[ACK]`. Client gets true RTT and tight PTO ($3 \times \text{RTT}$). Handshake is 15-20ms faster.
-  - **The Paper's Blind Spot**: Static IACK emits 2 packet flights instead of 1, doubling syscalls. Under load, if $\Delta t_{\text{effective}} > 3 \times \text{RTT}$, client timers fire prematurely, creating spurious PTO probe storms.
-  - **Our Solution**: Load-Aware QUIC Instant ACK via a closed-loop Schmitt-trigger hysteresis controller.
-
-* **Ayush Arya (Slides 6–10)**:
-  - **Figures 1 & 2**: Under peacetime/light load, Load-Aware deploys IACK, matching the 15-20ms speedup across all RTTs without delaying TTFB.
-  - **Figures 3 & 4 (Core Thesis)**: At 50–75 concurrent clients, Static IACK explodes to 128–148 ms. Load-Aware autonomously transitions 93%+ of connections to coalesced WFC, capping latency at 102 ms (~20% improvement).
-  - **Figure 5**: Validates the theoretical crossover condition ($\Delta t > 3 \times \text{RTT}$).
-  - **Figure 6**: Decomposes handshake timeline ($t_1$ to $t_4$), proving queueing during cert wait ($t_2$) is eliminated by coalescing.
-  - **Figure 7**: Proves $[\tau_{\text{low}}=4, \tau_{\text{high}}=8]$ deadband eliminates mode-flapping.
-  - **Figure 8**: 2D parameter heatmap proving static policies fail across half the operating space.
