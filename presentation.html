@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Load-Aware QUIC Instant ACK — COL724 Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #0b0f19;
+            --slide-bg: #ffffff;
+            --navy-dark: #0f172a;
+            --navy-light: #1e293b;
+            --text-dark: #1e293b;
+            --text-muted: #64748b;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --card-bg: #f8fafc;
+            --card-border: #e2e8f0;
+            --highlight: #eff6ff;
+            --shadow-subtle: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-body);
+            color: #f8fafc;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            height: 52px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge-course {
+            background: #1e293b;
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .presentation-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+
+        .toolbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-tool {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f1f5f9;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .btn-tool:hover {
+            background: #334155;
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .btn-tool.active {
+            background: var(--primary);
+            border-color: var(--primary-hover);
+        }
+
+        /* Slide Deck Viewport */
+        .deck-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            position: relative;
+        }
+
+        .slide-viewport {
+            width: 100%;
+            max-width: 1333px;
+            aspect-ratio: 16 / 9;
+            max-height: calc(100vh - 120px);
+            background: var(--slide-bg);
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-dark);
+        }
+
+        /* Individual Slide */
+        .slide {
+            width: 100%;
+            height: 100%;
+            padding: 40px 48px;
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: #ffffff;
+            overflow-y: auto;
+        }
+
+        .slide.active {
+            display: flex;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.995); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Header Section */
+        .slide-header {
+            margin-bottom: 20px;
+        }
+
+        .category-tag {
+            display: inline-block;
+            background: #eff6ff;
+            color: var(--primary);
+            border: 1px solid #bfdbfe;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 9999px;
+            margin-bottom: 8px;
+        }
+
+        .slide-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--navy-dark);
+            line-height: 1.25;
+            margin-bottom: 4px;
+        }
+
+        .slide-subtitle {
+            font-size: 14px;
+            font-style: italic;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* Slide Body Layouts */
+        .slide-body {
+            flex: 1;
+            display: grid;
+            gap: 28px;
+            align-items: center;
+        }
+
+        .layout-two-col {
+            grid-template-columns: 1.25fr 1fr;
+        }
+
+        .layout-two-col-equal {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .layout-reverse {
+            grid-template-columns: 1fr 1.25fr;
+        }
+
+        .layout-full {
+            grid-template-columns: 1fr;
+        }
+
+        /* Visual Media Box */
+        .media-container {
+            width: 100%;
+            height: 100%;
+            max-height: 480px;
+            background: #f8fafc;
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .media-container img {
+            max-width: 100%;
+            max-height: 430px;
+            object-fit: contain;
+            border-radius: 6px;
+        }
+
+        .media-caption {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: center;
+            margin-top: 6px;
+        }
+
+        /* Cards & Content */
+        .card-container {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            justify-content: center;
+        }
+
+        .content-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 16px 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .content-card.highlight {
+            background: var(--highlight);
+            border-color: #bfdbfe;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--navy-dark);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bullet-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .bullet-item {
+            font-size: 13.5px;
+            color: var(--text-dark);
+            line-height: 1.45;
+            position: relative;
+            padding-left: 18px;
+        }
+
+        .bullet-item::before {
+            content: "•";
+            color: var(--primary);
+            font-size: 16px;
+            font-weight: bold;
+            position: absolute;
+            left: 2px;
+            top: -2px;
+        }
+
+        .bullet-lead {
+            font-weight: 700;
+            color: var(--navy-dark);
+        }
+
+        /* Slide Footer */
+        .slide-footer {
+            height: 36px;
+            margin-top: 14px;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .presenter-pill {
+            background: #f1f5f9;
+            color: #475569;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* Bottom Control Bar */
+        .bottom-bar {
+            height: 56px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 100;
+        }
+
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-nav {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f1f5f9;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn-nav:hover:not(:disabled) {
+            background: var(--primary);
+            border-color: var(--primary-hover);
+        }
+
+        .btn-nav:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        .slide-counter {
+            font-size: 13px;
+            font-weight: 600;
+            color: #cbd5e1;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 0 12px;
+        }
+
+        /* Speaker Notes Panel (Drawer) */
+        .notes-panel {
+            position: fixed;
+            bottom: 56px;
+            left: 0;
+            right: 0;
+            height: 220px;
+            background: #0f172a;
+            border-top: 2px solid var(--primary);
+            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+            z-index: 90;
+            display: none;
+            flex-direction: column;
+            padding: 18px 28px;
+            color: #f8fafc;
+            animation: slideUp 0.2s ease-out;
+        }
+
+        .notes-panel.active {
+            display: flex;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .notes-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .notes-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #93c5fd;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .notes-body {
+            flex: 1;
+            font-size: 14.5px;
+            line-height: 1.6;
+            color: #e2e8f0;
+            overflow-y: auto;
+            white-space: pre-line;
+            padding-right: 12px;
+        }
+
+        /* Overview Modal */
+        .overview-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            padding: 40px;
+        }
+
+        .overview-modal.active {
+            display: flex;
+        }
+
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            overflow-y: auto;
+            flex: 1;
+            padding-top: 20px;
+        }
+
+        .thumb-card {
+            background: #1e293b;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .thumb-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .thumb-card.active {
+            border-color: var(--accent-green);
+            background: #0f172a;
+        }
+
+        .thumb-num {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+        }
+
+        .thumb-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #f1f5f9;
+            line-height: 1.35;
+        }
+
+        /* Math inline */
+        .math {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.92em;
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #0f172a;
+        }
+
+        /* Fullscreen Helper */
+        :fullscreen .slide-viewport {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="top-bar">
+        <div class="brand-container">
+            <span class="badge-course">IIT DELHI · COL724</span>
+            <span class="presentation-title">Load-Aware QUIC Instant ACK (Progress Presentation)</span>
+        </div>
+        <div class="toolbar-actions">
+            <button class="btn-tool" id="btn-notes" onclick="toggleNotes()">
+                <span>🎙️</span> Speaker Notes (S)
+            </button>
+            <button class="btn-tool" id="btn-overview" onclick="toggleOverview()">
+                <span>📑</span> Grid Overview (O)
+            </button>
+            <button class="btn-tool" onclick="toggleFullscreen()">
+                <span>⛶</span> Fullscreen (F)
+            </button>
+        </div>
+    </header>
+
+    <!-- DECK VIEWPORT -->
+    <main class="deck-container">
+        <div class="slide-viewport" id="viewport">
+
+            <!-- SLIDE 1: Title -->
+            <section class="slide active" id="slide-1">
+                <div class="slide-body layout-full" style="text-align: center; justify-content: center; align-items: center;">
+                    <div style="max-width: 900px; margin: 0 auto; padding: 40px 20px;">
+                        <span class="category-tag" style="font-size: 12px; padding: 6px 16px; margin-bottom: 20px;">
+                            COL724 / COL7524: Advanced Computer Networks · Progress Presentation
+                        </span>
+                        <h1 style="font-size: 42px; font-weight: 800; color: var(--navy-dark); margin-bottom: 12px; letter-spacing: -0.5px;">
+                            Load-Aware QUIC Instant ACK
+                        </h1>
+                        <p style="font-size: 22px; font-weight: 500; color: var(--text-muted); margin-bottom: 32px;">
+                            Balancing Handshake Latency and Server Contention in Modern Edge CDNs
+                        </p>
+                        
+                        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 24px; margin-bottom: 28px; display: inline-flex; gap: 48px; text-align: left;">
+                            <div>
+                                <div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase;">Team Members</div>
+                                <div style="font-size: 15px; font-weight: 700; color: var(--navy-dark); margin-top: 4px;">Muhammed Nishad <span style="font-weight: 400; color: #64748b;">(2026MCS2799)</span></div>
+                                <div style="font-size: 15px; font-weight: 700; color: var(--navy-dark); margin-top: 2px;">Ayush Arya <span style="font-weight: 400; color: #64748b;">(2026MCS2802)</span></div>
+                            </div>
+                            <div style="border-left: 1px solid var(--card-border); padding-left: 48px;">
+                                <div style="font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase;">Academic Context</div>
+                                <div style="font-size: 14px; font-weight: 600; color: var(--navy-dark); margin-top: 4px;">Department of Computer Science & Engineering</div>
+                                <div style="font-size: 13px; color: var(--text-muted);">IIT Delhi · Semester 1, 2026–27</div>
+                            </div>
+                        </div>
+
+                        <div style="font-size: 13px; color: var(--text-muted);">
+                            <strong>Base Paper:</strong> <em>ReACKed QUICer: Measuring the Performance of Instant Acknowledgments in QUIC Handshakes</em> (ACM IMC 2024)
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>IIT Delhi · Advanced Computer Networks</div>
+                    <div class="presenter-pill">Muhammed Nishad & Ayush Arya</div>
+                    <div>Slide 1 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 2: Context -->
+            <section class="slide" id="slide-2">
+                <div class="slide-header">
+                    <span class="category-tag">Context & Motivation</span>
+                    <h2 class="slide-title">Modern Edge CDNs & The Certificate Delay Gap (Δt)</h2>
+                    <p class="slide-subtitle">Edge proxies terminate QUIC handshakes, but TLS certificate signing introduces internal delay.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/diag_cdn_architecture.png" alt="CDN Architecture Diagram">
+                        <div class="media-caption">Figure: Client network RTT vs. Backend certificate retrieval delay Δt in modern Edge CDNs</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🌐 Architectural Drivers</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">The Edge/Backend Split:</span> CDNs like Cloudflare and Akamai terminate QUIC at distributed edge PoPs, while certificates and private keys remain in centralized backend stores (Keyless SSL).</li>
+                                <li class="bullet-item"><span class="bullet-lead">Backend Delay (Δt):</span> Fetching certificates, computing RSA/ECDSA cryptographic signatures, or queueing introduces an internal delay Δt (typically 2 ms to 200 ms).</li>
+                                <li class="bullet-item"><span class="bullet-lead">The Protocol Dilemma:</span> While waiting for the certificate, should the server wait and send 1 coalesced flight, or immediately acknowledge the client?</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 2 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 3: Base Paper -->
+            <section class="slide" id="slide-3">
+                <div class="slide-header">
+                    <span class="category-tag">Base Research Paper</span>
+                    <h2 class="slide-title">ReACKed QUICer: Measuring Instant ACKs (ACM IMC 2024)</h2>
+                    <p class="slide-subtitle">Jonas Mücke, Marcin Nawrocki, Raphael Hiesgen, Thomas C. Schmidt, Matthias Wählisch</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/diag_handshake_flow.png" alt="Handshake Sequence Flow">
+                        <div class="media-caption">Figure: Sequence flows comparing Wait-for-Cert (WFC) vs. Instant ACK (IACK)</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">📄 Base Paper Core Mechanisms</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Status Quo (WFC):</span> Server waits for Δt, then coalesces <span class="math">Initial[ACK, Crypto]</span> + <span class="math">Handshake[Crypto]</span> into 1 UDP packet flight.</li>
+                                <li class="bullet-item"><span class="bullet-lead">The Paper's Proposal (IACK):</span> Server immediately transmits an uncoalesced <span class="math">Initial[ACK]</span>, sending the certificate flight later.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Reported Benefit:</span> Delivers 15–20 ms faster connection setups across realistic network paths.</li>
+                                <li class="bullet-item"><span class="bullet-lead">The Limitation:</span> Evaluated exclusively under static network settings on idle servers.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 3 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 4: Theoretical Mechanics -->
+            <section class="slide" id="slide-4">
+                <div class="slide-header">
+                    <span class="category-tag">Theoretical Mechanics</span>
+                    <h2 class="slide-title">RFC 9002 Timer Math: Probe Timeout (PTO) Inflation</h2>
+                    <p class="slide-subtitle">Under Wait-for-Certificate, internal server delay artificially inflates the client's loss recovery timer.</p>
+                </div>
+                <div class="slide-body layout-two-col-equal">
+                    <div class="content-card highlight">
+                        <div class="card-title">⏱️ RFC 9002 Initial PTO Formulation</div>
+                        <p style="font-size: 13px; margin-bottom: 12px; color: #334155;">
+                            Under RFC 9002, the initial Probe Timeout is computed as:
+                        </p>
+                        <div style="background: white; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--primary); margin-bottom: 16px;">
+                            PTO_initial ≈ smoothed_rtt + 4 × rttvar ≈ 3 × RTT_sample
+                        </div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">In WFC:</span> Client measures <span class="math">RTT_net + Δt</span>, resulting in <span class="math">PTO = 3 × (RTT + Δt)</span>.</li>
+                            <li class="bullet-item"><span class="bullet-lead">In IACK:</span> Client measures true <span class="math">RTT_net</span>, resulting in <span class="math">PTO = 3 × RTT</span>.</li>
+                            <li class="bullet-item"><span class="bullet-lead">The Penalty:</span> WFC delays loss recovery by up to <span class="math">3 × Δt</span>.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="card-title">🔢 Numerical Example: RTT = 20ms, Δt = 50ms</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">True Network Latency:</span> 20 ms bidirectional RTT.</li>
+                            <li class="bullet-item"><span class="bullet-lead">WFC Client Timer:</span> Measured RTT = 70 ms &rarr; Initial PTO = <strong>210 ms</strong>.</li>
+                            <li class="bullet-item"><span class="bullet-lead">IACK Client Timer:</span> Measured RTT = 20 ms &rarr; Initial PTO = <strong>60 ms</strong>.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Loss Stall Avoided:</span> If a packet drops, IACK initiates recovery in 60 ms. WFC stalls for 210 ms (&plus;150 ms delay!).</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 4 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 5: The Blind Spot -->
+            <section class="slide" id="slide-5">
+                <div class="slide-header">
+                    <span class="category-tag">Problem Statement & Blind Spot</span>
+                    <h2 class="slide-title">The Vulnerability of Static IACK: Probe Storms Under Load</h2>
+                    <p class="slide-subtitle">When server contention delays certificates beyond the tight PTO, clients trigger spurious probe storms.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="content-card highlight" style="border-color: #fca5a5; background: #fff5f5;">
+                        <div class="card-title" style="color: var(--accent-red);">💥 The Crossover Failure Condition</div>
+                        <div style="background: white; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent-red); margin-bottom: 14px;">
+                            Δt_effective > PTO_IACK = 3 × RTT_network
+                        </div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Premature Timer Expiration:</span> When server contention queues certificates beyond 3&times;RTT, the client timer expires before the certificate packet arrives!</li>
+                            <li class="bullet-item"><span class="bullet-lead">Spurious Probe Avalanche:</span> Thousands of concurrent clients simultaneously blast spurious Initial[Probe] datagrams.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Syscall Multiplication:</span> Sending 2 UDP datagrams per connection doubles <span class="math">sendmsg</span> syscalls and saturates socket buffers.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-card">
+                        <div class="card-title">⚖️ Operating Regime Comparison</div>
+                        <div style="font-size: 13px; display: flex; flex-direction: column; gap: 12px;">
+                            <div style="padding: 10px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+                                <strong style="color: #16a34a;">Peacetime (RTT=20ms, Δt=5ms):</strong><br>
+                                PTO = 60ms; Δt &lt; PTO. Successful fast handshake!
+                            </div>
+                            <div style="padding: 10px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+                                <strong style="color: #dc2626;">Server Contention (RTT=20ms, Δt_eff=75ms):</strong><br>
+                                PTO = 60ms; Δt_eff &gt; PTO. <strong>Timer expires prematurely &rarr; Probe Storm!</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 5 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 6: Proposed Extension -->
+            <section class="slide" id="slide-6">
+                <div class="slide-header">
+                    <span class="category-tag">Proposed Extension</span>
+                    <h2 class="slide-title">Load-Aware QUIC Instant ACK: Closed-Loop Adaptation</h2>
+                    <p class="slide-subtitle">Dynamically evaluate server contention to balance low handshake latency and overload protection.</p>
+                </div>
+                <div class="slide-body layout-two-col-equal">
+                    <div class="content-card">
+                        <div class="card-title">🎯 The Core Thesis</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Active Closed-Loop Signal:</span> Use server contention (active handshake count, CPU utilization) as a dynamic feedback signal to decide policy per connection.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Peacetime Regime (Low Load):</span> Deploy <strong>Instant ACK</strong> &rarr; Accurate RTT estimation, tight PTO (3&times;RTT), and 15–20 ms speedup.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Surge Regime (High Load):</span> Fallback to <strong>WFC Coalescing</strong> &rarr; Halves <span class="math">sendmsg</span> syscall volume, protects socket buffers, suppresses probe storms.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-card highlight">
+                        <div class="card-title">✨ Key Architectural Advantages</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">100% Client Compatible:</span> Fully compliant with RFC 9000 & 9002. Requires zero modifications to client browsers or mobile stacks.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Zero Mode Flapping:</span> Closed-loop Schmitt-trigger hysteresis absorbs turbulent oscillations.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Best-of-Both-Worlds:</span> Ultra-low latency during normal operation, unwavering resilience during flash crowds.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 6 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 7: Hysteresis Controller -->
+            <section class="slide" id="slide-7">
+                <div class="slide-header">
+                    <span class="category-tag">Proposed Extension</span>
+                    <h2 class="slide-title">The Control Engine: Schmitt-Trigger Hysteresis Controller</h2>
+                    <p class="slide-subtitle">Dual-threshold deadband eliminates mode-flapping and ensures rock-solid operational stability.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/diag_hysteresis_state_machine.png" alt="Hysteresis Controller State Machine">
+                        <div class="media-caption">Figure: State machine with IACK state, WFC state, and [4, 8] Hysteresis Deadband</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🎛️ Controller Decision Logic</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Switch to WFC:</span> Active Handshakes &ge; &tau;<sub>high</sub> (8) &rarr; Fallback to single-flight coalescing.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Switch to IACK:</span> Active Handshakes &le; &tau;<sub>low</sub> (4) &rarr; Headroom available, deploy Instant ACK.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Deadband [4, 8]:</span> When active connections are between 4 and 8, maintain previous state.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Anti-Flapping:</span> Prevents rapid toggling under noisy or oscillating traffic spikes.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 7 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 8: System Implementation -->
+            <section class="slide" id="slide-8">
+                <div class="slide-header">
+                    <span class="category-tag">Work Completed So Far</span>
+                    <h2 class="slide-title">Implementation Stack & Experimental Testbed Architecture</h2>
+                    <p class="slide-subtitle">Complete end-to-end QUIC measurement testbed built on Go 1.20.7 and modified quic-go.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/diag_system_architecture.png" alt="System Architecture">
+                        <div class="media-caption">Figure: Block diagram of Measurement Client, UDP Proxy, QUIC Server, and Streamlit Dashboard</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🛠️ Core Modules Implemented</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">quic-go & qtls-go1-20:</span> Pinned to Go 1.20.7 runtime to access internal TLS 1.3 handshake secrets.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Engine Hook:</span> Integrated into <span class="math">connection.go:handleUnpackedLongHeaderPacket()</span>.</li>
+                                <li class="bullet-item"><span class="bullet-lead">UDP Proxy Emulator:</span> Asynchronous proxy (<span class="math">cmd/proxy</span>) with 4MB socket buffers, delay injection, jitter, and loss.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Measurement Client:</span> Goroutine worker pool measuring TTFB, phases <span class="math">t1-t4</span>, and RFC 9002 PTO probes.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 8 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 9: Evaluation Methodology -->
+            <section class="slide" id="slide-9">
+                <div class="slide-header">
+                    <span class="category-tag">Evaluation Methodology</span>
+                    <h2 class="slide-title">Experimental Testbed Specifications & Evaluation Matrix</h2>
+                    <p class="slide-subtitle">Standardized benchmark testbed designed for rigorous scientific reproducibility.</p>
+                </div>
+                <div class="slide-body layout-two-col-equal">
+                    <div class="content-card">
+                        <div class="card-title">🖥️ Standardized Testbed Specifications</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Host Hardware:</span> Apple Silicon M-series (8 execution cores, 16GB unified memory).</li>
+                            <li class="bullet-item"><span class="bullet-lead">Toolchain & Runtime:</span> Dedicated Go 1.20.7 toolchain + Python 3 virtualenv.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Kernel Buffers:</span> UDP socket buffers set to <strong>4MB</strong> (<span class="math">SetReadBuffer</span>) to eliminate loopback drops.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Workload:</span> 10KB HTTP/3 application stream data payload per connection.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-card highlight">
+                        <div class="card-title">📊 Parameter Matrix Evaluated</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Server Policies:</span> Static WFC vs. Static IACK vs. Load-Aware (Ours).</li>
+                            <li class="bullet-item"><span class="bullet-lead">Network RTTs:</span> 10 ms, 30 ms, 60 ms, 100 ms.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Backend Cert Delay (Δt):</span> 5 ms, 20 ms, 50 ms, 100 ms, 180 ms.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Concurrency Load:</span> 1 to 75 clients (baseline) &rarr; up to 5,000 (stress).</li>
+                            <li class="bullet-item"><span class="bullet-lead">Impairments:</span> 0% to 8% packet loss; 0 to &plusmn;45 ms delay jitter.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad &rarr; Ayush Arya</div>
+                    <div>Slide 9 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 10: Finding 1 (Fig 1) -->
+            <section class="slide" id="slide-10">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 1: Handshake Latency vs. Network RTT (Peacetime)</h2>
+                    <p class="slide-subtitle">Under peacetime, Load-Aware reliably chooses Instant ACK, matching the 15–20 ms speedup across all RTTs.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig1_handshake_latency_vs_rtt.png" alt="Figure 1: Handshake Latency vs Network RTT">
+                        <div class="media-caption">Figure 1: Handshake completion time (ms) vs. Network RTT (10ms to 100ms, Δt = 20ms)</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">📈 Empirical Takeaways</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Peacetime Optimality:</span> Under light load, Load-Aware detects zero contention and deploys 100% Instant ACK.</li>
+                                <li class="bullet-item"><span class="bullet-lead">15–20ms Speedup:</span> At RTT=10ms: WFC=36.6ms, Load-Aware=<strong>34.2ms</strong>. At RTT=60ms: WFC=101.2ms, Load-Aware=<strong>85.0ms (16.2ms faster!)</strong>.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Zero Overhead:</span> Load-Aware curve (green) overlaps Static IACK (orange) within &lt;0.5ms variance.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 10 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 11: Finding 2 (Fig 2) -->
+            <section class="slide" id="slide-11">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 2: Time to First Byte (TTFB) vs. Network RTT</h2>
+                    <p class="slide-subtitle">TTFB scales linearly with path RTT, confirming Instant ACK introduces zero application-layer delay.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig2_ttfb_vs_rtt.png" alt="Figure 2: TTFB vs Network RTT">
+                        <div class="media-caption">Figure 2: Time to First Byte (TTFB) vs. Network RTT across all three policies</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">📦 Application Stream Verification</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Why TTFB Matters:</span> Verifies when user application actually receives the first HTTP/3 stream payload.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Identical Scaling:</span> TTFB scales linearly with path RTT across all 3 modes (~35ms at 10ms &rarr; ~126ms at 100ms).</li>
+                                <li class="bullet-item"><span class="bullet-lead">Zero Payload Penalty:</span> Splitting the flight in IACK does not delay 1-RTT stream application delivery.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 11 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 12: Finding 3 (Fig 3) -->
+            <section class="slide" id="slide-12">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 3: Handshake Scalability Under Concurrency (Core Thesis)</h2>
+                    <p class="slide-subtitle">Static IACK degrades sharply to 128+ ms under concurrency; Load-Aware caps latency at 102 ms (~20% speedup).</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig3_latency_under_load.png" alt="Figure 3: Latency Under Load">
+                        <div class="media-caption">Figure 3: Median and p95 Handshake Latency under concurrency surge (1 to 75 clients)</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🔥 Core Thesis Validated</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Static IACK Breakdown:</span> From 1 to 50 clients, Static IACK jumps from 46.1 ms to <strong>128.8 ms</strong> (and 148 ms at 75 clients) due to syscall duplication and socket buffer congestion.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Load-Aware Throttling:</span> Crosses &tau;<sub>high</sub>=8 and transitions to WFC, capping median latency at <strong>102.8 ms (20.2% faster)</strong>.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Tail Bounded:</span> p95 tail latency (dashed line) remains tightly controlled under Load-Aware.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 12 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 13: Finding 4 (Fig 4) -->
+            <section class="slide" id="slide-13">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 4: Autonomous Closed-Loop Decision Transition</h2>
+                    <p class="slide-subtitle">Stacked bar chart showing the automated shift from 100% IACK to 93%+ WFC fallback as load surges.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig4_policy_decision_transition.png" alt="Figure 4: Decision Transitions">
+                        <div class="media-caption">Figure 4: Autonomous shift from IACK (green) to WFC coalescing (blue) as concurrency scales</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">⚙️ Dynamic Adaptation Breakdown</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">1 to 5 Clients:</span> 100% IACK decisions (green). Server operates in Fast-PTO low-latency mode.</li>
+                                <li class="bullet-item"><span class="bullet-lead">10 Clients (Threshold):</span> 70% IACK / 30% WFC. Active handshakes cross &tau;<sub>high</sub>=8; throttling initiates.</li>
+                                <li class="bullet-item"><span class="bullet-lead">50 Clients (Surge Overload):</span> <strong>93%+ WFC decisions</strong>. Connections coalesce into WFC, protecting socket buffers.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 13 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 14: Finding 5 (Fig 5) -->
+            <section class="slide" id="slide-14">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 5: Certificate Delay Sweep & The PTO Crossover Boundary</h2>
+                    <p class="slide-subtitle">Empirical validation of the theoretical failure boundary (Δt > 3 × RTT) where Static IACK collapses.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig5_cert_delay_sweep_crossover.png" alt="Figure 5: Cert Delay Sweep">
+                        <div class="media-caption">Figure 5: Handshake Latency vs Cert Delay Δt (RTT = 40ms, initial PTO ≈ 120ms)</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">⚠️ The Theoretical Crossover</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Setup:</span> RTT = 40 ms &rarr; Initial Client PTO = 3 &times; 40 ms = <strong>120 ms</strong> (red dotted line).</li>
+                                <li class="bullet-item"><span class="bullet-lead">Below Boundary (Δt &lt; 120ms):</span> IACK completes cleanly before client PTO timer expires.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Beyond Boundary (Δt &gt; 120ms):</span> Static IACK triggers premature client timeouts and spurious retransmissions.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Load-Aware Immunity:</span> Load-Aware seamlessly avoids probe storms.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 14 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 15: Finding 6 (Fig 6) -->
+            <section class="slide" id="slide-15">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 6: Phased Handshake Decomposition (t1 to t4)</h2>
+                    <p class="slide-subtitle">Deconstructs handshake wait times: under load, Static IACK certificate gap (t2) balloons due to queueing.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig6_phase_wait_time_breakdown.png" alt="Figure 6: Phased Breakdown">
+                        <div class="media-caption">Figure 6: Phase breakdown (t1 to t4): Low Contention (left) vs. High Contention (right)</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🔬 Handshake Phase Anatomy</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Phases:</span> <span class="math">t1</span>=1st server pkt, <span class="math">t2</span>=cert wait, <span class="math">t3</span>=finish, <span class="math">t4</span>=TTFB response.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Low Contention:</span> IACK cuts <span class="math">t1</span> from 30ms to 10ms; <span class="math">t2</span> equals pure cert delay (20ms).</li>
+                                <li class="bullet-item"><span class="bullet-lead">High Contention:</span> In Static IACK, <span class="math">t2</span> balloons to 65+ ms due to socket buffer queueing and context switching.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Load-Aware Resolution:</span> Eliminates the <span class="math">t2</span> queueing penalty via single-flight coalescing.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 15 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 16: Finding 7 (Fig 7) -->
+            <section class="slide" id="slide-16">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 7: Hysteresis Threshold Sensitivity Sweep</h2>
+                    <p class="slide-subtitle">Proves that the deadband [τ_low=4, τ_high=8] provides the optimal balance of agility and anti-flapping stability.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig7_threshold_sensitivity.png" alt="Figure 7: Threshold Sensitivity">
+                        <div class="media-caption">Figure 7: Latency across deadbands [(2,4), (4,8), (8,16), (15,30)] at 25 concurrent connections</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">⚖️ Deadband Sensitivity Analysis</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">[2, 4] Pair (Overly Sensitive):</span> Mode-flaps on transient bursts, losing IACK benefits during brief spikes.</li>
+                                <li class="bullet-item"><span class="bullet-lead">[15, 30] Pair (Too Sluggish):</span> Reacts too late; socket buffers overflow before switching, blowing out p95 tail (&gt;105ms).</li>
+                                <li class="bullet-item"><span class="bullet-lead">[4, 8] Pair (The Optimal Deadband):</span> Delivers lowest combined median (50.8 ms) and p95 tail (64.2 ms).</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 16 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 17: Finding 8 (Fig 8) -->
+            <section class="slide" id="slide-17">
+                <div class="slide-header">
+                    <span class="category-tag">Results & Findings</span>
+                    <h2 class="slide-title">Figure 8: 2D Operational Space Winner Map (Headline Figure)</h2>
+                    <p class="slide-subtitle">Visualizing the entire design space: static policies fail across half the regimes; Load-Aware dominates throughout.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/fig8_winner_heatmap.png" alt="Figure 8: 2D Parameter Heatmap">
+                        <div class="media-caption">Figure 8: Parameter Space Heatmap (Cert Delay Δt × Concurrent Handshake Load)</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🗺️ Design Space Mapping</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Static Policies Fail:</span> Orange = Static IACK wins only in bottom-left. Blue = Static WFC wins only in top-right.</li>
+                                <li class="bullet-item"><span class="bullet-lead">The Static Flaw:</span> Any static configuration is suboptimal across 50% of real-world operating conditions!</li>
+                                <li class="bullet-item"><span class="bullet-lead">Load-Aware Dominance:</span> Green = Load-Aware dynamically chooses the winning policy across <strong>100% of the entire 2D matrix</strong>.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 17 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 18: Summary of Work Completed -->
+            <section class="slide" id="slide-18">
+                <div class="slide-header">
+                    <span class="category-tag">Progress Summary</span>
+                    <h2 class="slide-title">Work Completed So Far: Milestone 2 Deliverables</h2>
+                    <p class="slide-subtitle">Complete verification, engine implementation, empirical evaluation, and interactive tooling.</p>
+                </div>
+                <div class="slide-body layout-two-col-equal">
+                    <div class="content-card">
+                        <div class="card-title">✅ Milestone Checklist Completed</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Fork Verification:</span> Validated IMC '24 artifact repo on Go 1.20.7 + <span class="math">qtls</span>.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Multi-Mode Server:</span> Unified binary supporting WFC, IACK, and Load-Aware.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Hysteresis Controller:</span> Built <span class="math">loadmonitor.go</span> with [4, 8] anti-flapping deadband.</li>
+                            <li class="bullet-item"><span class="bullet-lead">UDP Network Proxy:</span> Asynchronous proxy with nanosecond RTT, loss, and jitter.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Empirical Results:</span> 8 baseline experiments completed with raw CSVs & publication plots.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-card highlight">
+                        <div class="card-title">⚡ Interactive Presentation Dashboard</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Live Streamlit Dashboard:</span> Real-time telemetry at <span class="math">localhost:8501</span> (<span class="math">implementation/dashboard/app.py</span>).</li>
+                            <li class="bullet-item"><span class="bullet-lead">Live Gauges:</span> Active handshakes, decision ratios, and state transitions.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Complete Automation:</span> Single-script benchmark execution (<span class="math">run_experiments.py</span>).</li>
+                            <li class="bullet-item"><span class="bullet-lead">Reproducibility:</span> Full documentation in <span class="math">PROJECT_README.md</span>.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Muhammed Nishad</div>
+                    <div>Slide 18 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 19: Future Work 1 -->
+            <section class="slide" id="slide-19">
+                <div class="slide-header">
+                    <span class="category-tag">Future Work & Next Directions</span>
+                    <h2 class="slide-title">Future Work 1: Stress Testing Insights & Theoretical Discoveries</h2>
+                    <p class="slide-subtitle">Beyond baseline: probing extreme adversarial regimes, flash crowds, and fundamental transport trade-offs.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/diag_stress_tests_summary.png" alt="Stress Test Discoveries">
+                        <div class="media-caption">Figure: Flash Crowds (Exp B), 500-Burst (Exp A.3), 5% Loss (Exp C), and Probe Storms</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🔬 Key Theoretical & Empirical Insights</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">The "Hydraulic Relief" Effect (Exp B):</span> In 200-client flash crowds, Load-Aware beats <strong>both</strong> static baselines simultaneously (337.7 ms vs 759.4 ms IACK and 920.9 ms WFC). Initial arrivals get fast IACK; subsequent arrivals coalesce into WFC.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Loss Recovery Speedup (Exp C):</span> Under 5% loss, WFC stalls to 328.6 ms due to inflated PTO. Load-Aware recovers in <strong>129.9 ms (60.5% faster)</strong>.</li>
+                                <li class="bullet-item"><span class="bullet-lead">CPU vs Socket Buffers (Exp A.1):</span> 8 pegged cores showed &lt;1ms variance. Socket queue drops drive collapse, not background compute.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 19 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 20: Future Work 2 -->
+            <section class="slide" id="slide-20">
+                <div class="slide-header">
+                    <span class="category-tag">Future Work & Next Directions</span>
+                    <h2 class="slide-title">Future Work 2: Load-Aware v2 Innovations & Research Roadmap</h2>
+                    <p class="slide-subtitle">Lock-free fast paths, arrival velocity prediction (dLoad/dt), token-bucket pacing, and Milestone 3 plans.</p>
+                </div>
+                <div class="slide-body layout-two-col">
+                    <div class="media-container">
+                        <img src="figures/diag_v1_vs_v2_comparison.png" alt="v1 vs v2 Comparison">
+                        <div class="media-caption">Figure: Head-to-Head: Load-Aware v1 vs. v2 across Flash Crowds, Surges, Jitter, and Probe Storms</div>
+                    </div>
+                    <div class="card-container">
+                        <div class="content-card">
+                            <div class="card-title">🚀 v2 Architecture & Milestone 3 Roadmap</div>
+                            <ul class="bullet-list">
+                                <li class="bullet-item"><span class="bullet-lead">Lock-Free Fast Path:</span> Replaced mutexes with atomic CAS registers. Decision latency dropped from ~150ns to <strong>&lt;5ns (30x faster)</strong>.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Arrival Velocity (dLoad/dt):</span> Predicts arrival rate via EWMA; pre-emptively shifts to WFC before socket queues fill.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Token-Bucket Pacer:</span> Rate-limits uncoalesced ACK bursts during micro-surges.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Benchmark Gains:</span> <strong>32% faster</strong> in 100-client flash crowds; <strong>36.2% probe storm reduction</strong> at 5,000 clients.</li>
+                                <li class="bullet-item"><span class="bullet-lead">Milestone 3 Roadmap:</span> Multi-client wide-area Internet testbeds, kernel eBPF socket queue depth, refinement towards v3.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Presenter: Ayush Arya</div>
+                    <div>Slide 20 of 21</div>
+                </div>
+            </section>
+
+            <!-- SLIDE 21: Conclusion & Defense -->
+            <section class="slide" id="slide-21">
+                <div class="slide-header">
+                    <span class="category-tag">Conclusion & Defense</span>
+                    <h2 class="slide-title">Conclusion, Live Demonstration & Q&A Defense</h2>
+                    <p class="slide-subtitle">Balancing handshake latency and server overhead through dynamic closed-loop load awareness.</p>
+                </div>
+                <div class="slide-body layout-two-col-equal">
+                    <div class="content-card">
+                        <div class="card-title">💡 Core Takeaways</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Fundamental Trade-Off Resolved:</span> Closed-loop load awareness captures Instant ACK latency speedup while completely avoiding probe storm collapse.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Superiority Proven:</span> 20% latency reduction under concurrency, dominates 100% of the 2D parameter space, and beats both baselines in flash crowds.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Standard Compliant:</span> 100% RFC 9000/9002 compatible with zero client-side changes.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Live Dashboard:</span> Running live at <span class="math">localhost:8501</span>.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-card highlight">
+                        <div class="card-title">🛡️ Presentation Defense Q&A Sheet</div>
+                        <ul class="bullet-list">
+                            <li class="bullet-item"><span class="bullet-lead">Why [4, 8] thresholds?</span> Swept in Exp 7 across [2,4] to [15,30]. [4,8] provided optimal trade-off between responsiveness and anti-flapping.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Why beat BOTH at 200 conns?</span> Hydraulic relief effect: initial arrivals get fast IACK; subsequent arrivals coalesce into WFC to protect socket buffers.</li>
+                            <li class="bullet-item"><span class="bullet-lead">Why not just enlarge socket buffers?</span> Bufferbloat! Big queues delay cert packets, triggering premature client PTOs anyway. Switching policies cuts syscalls at the source.</li>
+                        </ul>
+                        <div style="margin-top: 16px; text-align: center; font-weight: 700; color: var(--primary); font-size: 15px;">
+                            Thank You! Questions & Discussion
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-footer">
+                    <div>COL724 / COL7524: Advanced Computer Networks</div>
+                    <div class="presenter-pill">Muhammed Nishad & Ayush Arya</div>
+                    <div>Slide 21 of 21</div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- SPEAKER NOTES DRAWER -->
+    <div class="notes-panel" id="notes-panel">
+        <div class="notes-header">
+            <span class="notes-title">🎙️ Presenter Script & Spoken Talking Points</span>
+            <span style="font-size: 11px; color: #94a3b8;">Press 'S' to close</span>
+        </div>
+        <div class="notes-body" id="notes-content">
+            <!-- Dynamically populated via JS -->
+        </div>
+    </div>
+
+    <!-- BOTTOM BAR CONTROLS -->
+    <footer class="bottom-bar">
+        <div class="nav-controls">
+            <button class="btn-nav" id="btn-prev" onclick="changeSlide(-1)">◀ Prev</button>
+            <button class="btn-nav" id="btn-next" onclick="changeSlide(1)">Next ▶</button>
+        </div>
+        <div class="slide-counter" id="slide-counter">Slide 1 / 21</div>
+        <div style="font-size: 12px; color: #94a3b8; display: flex; gap: 16px;">
+            <span>[← / →] Navigate</span>
+            <span>[Space] Advance</span>
+            <span>[S] Notes</span>
+            <span>[F] Fullscreen</span>
+        </div>
+    </footer>
+
+    <!-- OVERVIEW GRID MODAL -->
+    <div class="overview-modal" id="overview-modal">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
+            <h3 style="font-size: 18px; font-weight: 700; color: #f1f5f9;">Slide Deck Overview (21 Slides)</h3>
+            <button class="btn-tool" onclick="toggleOverview()">✕ Close (Esc)</button>
+        </div>
+        <div class="overview-grid" id="overview-grid">
+            <!-- Generated via JS -->
+        </div>
+    </div>
+
+    <script>
+        const totalSlides = 21;
+        let currentSlide = 1;
+
+        const speakerNotes = {
+            1: "Good morning professors and peers. Today Ayush and I are presenting our Advanced Computer Networks project: Load-Aware QUIC Instant ACK. Our project explores connection setup performance in QUIC, building directly upon the ACM IMC 2024 paper ReACKed QUICer. We examine the fundamental tension between low-latency client handshakes and edge server processing contention, and propose an autonomous closed-loop solution.",
+            2: "To understand the problem, let's examine modern Internet architecture. When you connect to Cloudflare or Akamai, your QUIC handshake terminates at an edge point-of-presence close to you. However, due to security regulations and centralized key management (Keyless SSL), private keys and TLS certificates are fetched from a central backend. This introduces an internal latency delta-t, typically between 2 to 200 ms. The edge server faces a fundamental question: does it wait for the certificate before replying, or does it send an immediate acknowledgment back to the client?",
+            3: "The base paper we selected is ReACKed QUICer, published at ACM IMC 2024. In standard QUIC, servers use Wait-for-Certificate (WFC): they hold back until the certificate is ready and send everything in one coalesced UDP datagram. The authors proposed Instant ACK (IACK): the server splits the response into two flights. It immediately replies with an Initial ACK datagram, and sends the certificate later. They demonstrated that this yields a 15 to 20 millisecond latency improvement across typical Internet RTTs. However, their evaluation had a crucial limitation: it was conducted entirely under static network conditions on idle servers.",
+            4: "Let's look at the underlying protocol mathematics defined in RFC 9002. QUIC calculates the initial Probe Timeout as smoothed RTT plus 4 times RTTVAR, which mathematically reduces to roughly 3 times the measured initial RTT. In Wait-for-Certificate, the client's measured RTT accidentally includes the backend certificate delay delta-t. So PTO becomes 3 times (RTT + delta-t). If RTT is 20ms and cert delay is 50ms, the client thinks RTT is 70ms, setting its initial timer to 210ms! With Instant ACK, the client gets an immediate ACK after 20ms, locking in a true 60ms PTO. If packet loss occurs, Instant ACK recovers 150 milliseconds faster. This is the theoretical core of the IMC '24 paper.",
+            5: "Now, here is the critical blind spot that we identified. In a real edge server handling thousands of concurrent users, the server experiences CPU contention and crypto worker queueing. Static IACK creates two major problems. First, it doubles the number of outgoing UDP packets, doubling sendmsg syscalls and socket buffer usage right when the server is strained. Second, and more dangerously, if server queueing stretches the effective certificate delay beyond 3 times RTT, the client's tight PTO timer expires before the certificate arrives! The client mistakenly thinks the packet was lost and fires spurious probe packets. Under a traffic surge, thousands of clients send redundant probes simultaneously, triggering an avalanche collapse.",
+            6: "This brings us to our proposed improvement: Load-Aware QUIC Instant ACK. We ask: can server contention serve as a dynamic closed-loop feedback signal? Instead of forcing a static policy, our server dynamically monitors active handshakes and CPU load. During peacetime, when headroom is available, it deploys Instant ACK to give clients optimal 15-20ms speedup and tight loss recovery. When a traffic surge occurs, it autonomously falls back to single-flight coalescing under Wait-for-Certificate. This halves system calls, protects kernel socket buffers, and eliminates probe storms. Crucially, this requires zero changes to client software and fully obeys RFC 9000.",
+            7: "To prevent the controller from rapidly oscillating between modes, we designed a Schmitt-trigger hysteresis state machine, implemented in loadmonitor.go. If we used a single threshold—say, 6 connections—traffic hovering around 6 would cause continuous mode-flapping. Instead, we established a dual-threshold deadband: tau-low at 4 and tau-high at 8. When active handshakes rise past 8, the server switches to WFC coalescing. It only switches back to Instant ACK once active handshakes drop to 4 or below. In the middle deadband, it preserves its previous state, guaranteeing zero mode-flapping.",
+            8: "Slide 8 shows our complete implementation testbed. We built upon the authors' modified quic-go fork, which uses qtls-go1-20 to access TLS 1.3 internal secrets. We implemented three core Go binaries: first, a unified multi-mode server with dynamic hooks in connection.go; second, an asynchronous UDP proxy emulator that injects bidirectional RTT, jitter, and packet loss while using 4MB socket buffers to eliminate kernel drops; and third, a high-precision measurement client that tracks TTFB, timestamp phases t1 through t4, and RFC 9002 PTO probe counts. We also built a real-time Streamlit dashboard at port 8501.",
+            9: "To evaluate our system rigorously, we standardized our testbed. All benchmarks were run on an 8-core Apple Silicon host using Go 1.20.7 and 4MB UDP socket buffers to eliminate loopback kernel drops. Our evaluation matrix tests all three policies across four network RTTs from 10 to 100ms, five backend certificate delays from 5 to 180ms, concurrency levels up to 75 clients in baseline and up to 5,000 in stress tests, and channel impairments including 8% packet loss and 45ms jitter. I will now hand over to Ayush Arya to present our empirical results and findings.",
+            10: "Thank you Muhammed. Turning to our experimental findings, Figure 1 presents handshake completion time across network RTTs from 10 to 100 milliseconds under peacetime conditions with a 20ms certificate delay. As shown by the green curve, our Load-Aware policy tracks Static IACK almost identically, achieving a 15 to 20 millisecond latency advantage over Wait-for-Certificate across every single RTT. For instance, at 60ms RTT, WFC requires 101ms, while Load-Aware finishes in 85ms. This proves that during peacetime, our decision engine introduces negligible overhead and captures the full benefits of Instant ACK.",
+            11: "In Figure 2, we evaluated Time to First Byte (TTFB), which measures when the client application receives its first byte of HTTP/3 stream data. A potential concern with Instant ACK is whether splitting the response flights might delay the actual application payload. As Figure 2 clearly demonstrates, TTFB scales linearly with network RTT and is identical across all three policies. This confirms that deploying Instant ACK does not introduce any application-layer penalty.",
+            12: "Figure 3 is the core thesis of our research project. We ramped concurrent client handshakes from 1 to 75. Notice the orange curve: under Static IACK, handshake latency explodes from 46 milliseconds all the way to 128.8 ms at 50 clients, and 148 ms at 75 clients. This severe degradation occurs because Static IACK doubles the sendmsg syscalls, clogging socket buffers. In contrast, look at our Load-Aware curve in green: once load exceeds 8 connections, it autonomously transitions to coalesced WFC, capping median latency at 102.8 ms—a 20.2% improvement over Static IACK, while keeping tail latency strictly bounded.",
+            13: "Figure 4 illustrates exactly how the closed-loop controller behaves internally during this concurrency ramp. The green bars represent Instant ACK decisions, and the blue bars represent WFC coalescing decisions. At 1 to 5 clients, the server makes 100% IACK decisions. At 10 clients, as concurrency crosses our threshold of 8, it begins throttling to WFC. By the time we reach 50 clients, over 93% of incoming connections are autonomously coalesced into single-flight WFC, protecting the socket buffer without requiring any manual administrator tuning.",
+            14: "Figure 5 validates the mathematical failure condition we derived earlier. In this experiment, path RTT was 40ms, which means the client's initial PTO was exactly 3 times 40, or 120ms, marked by the vertical red dotted line. We swept backend certificate delay from 10ms to 180ms. As long as cert delay was under 120ms, Static IACK performed well. However, once cert delay exceeded 120ms, the client's PTO timer expired before the certificate arrived, triggering spurious retransmissions and degrading latency. Load-Aware successfully detects this and avoids timer breakdown.",
+            15: "In Figure 6, we instrumented our measurement client to decompose the handshake timeline into four distinct phases: t1 is time to the first server packet, t2 is the gap waiting for the certificate, t3 is handshake completion, and t4 is TTFB. Under low contention on the left, IACK cuts t1 to 10ms, while t2 remains a clean 20ms. But look at the right graph under high contention: in Static IACK, t2 balloons to over 65ms because uncoalesced ACK packets clog the socket queue. Load-Aware eliminates this queueing expansion by falling back to coalescing.",
+            16: "A critical design question for our hysteresis controller was: how should we choose the threshold values? In Figure 7, we evaluated four deadband configurations at 25 concurrent connections: [2,4], [4,8], [8,16], and [15,30]. We discovered that [2,4] was overly sensitive, causing unnecessary mode switches on minor fluctuations. On the other end, [15,30] was too sluggish, waiting until socket buffers had already congested. The deadband [4, 8] achieved the optimal balance, yielding the lowest median and tail latencies.",
+            17: "Figure 8 is our headline figure, mapping the complete two-dimensional design space across Backend Certificate Delay on the x-axis and Concurrent Handshake Load on the y-axis. The orange region shows where Static IACK is best—strictly in the bottom-left under low load. The blue region shows where Static WFC is best—under heavy load. This proves that any static policy is guaranteed to fail in half the operating space. In contrast, the green shading shows that Load-Aware dynamically selects the optimal strategy across 100% of the entire operational matrix.",
+            18: "To summarize the work completed for Milestone 2: we successfully cloned and verified the IMC '24 artifact repository, built a dedicated Go 1.20 environment, designed and integrated our Schmitt-trigger LoadMonitor into quic-go, built a standalone UDP network emulator proxy and multi-threaded measurement client, executed all 8 baseline experiments, and developed a real-time Streamlit monitoring dashboard. Everything is fully reproducible with a single script.",
+            19: "Looking toward our future work and Milestone 3, we pushed our v1 engine into extreme adversarial stress scenarios. In Experiment B, we simulated an instantaneous flash crowd of 200 clients. In this regime, Load-Aware did not merely fall between WFC and IACK—it beat both static baselines simultaneously, completing in 337ms versus 759ms for IACK and 920ms for WFC! We call this the Hydraulic Relief Valve effect: early connections capture Instant ACK speed, and as load passes 8, subsequent connections are throttled into coalesced WFC, preventing socket queue drops. We also discovered that pegging 8 CPU cores caused less than 1ms difference—proving that QUIC handshake collapse is driven by UDP socket buffer queueing and syscall volume, not background compute.",
+            20: "To address the bottlenecks identified in stress testing, we have already prototyped Load-Aware v2. v2 introduces three key innovations: first, a sub-5-nanosecond lock-free atomic fast-path eliminating mutex convoying; second, arrival velocity prediction—computing dLoad/dt via EWMA to switch to WFC pre-emptively before socket buffers fill; and third, an atomic token-bucket pacer to throttle ACK bursts. In preliminary tests, v2 is 32% faster than v1 in flash crowds and reduces probe storm traffic by 36.2% under 5,000 clients. For Milestone 3, we plan to validate these prototypes across wide-area Internet paths, explore kernel eBPF queue monitoring, and present our final refined v3 architecture.",
+            21: "In conclusion, Load-Aware QUIC Instant ACK successfully resolves the fundamental trade-off between handshake latency and server overhead in modern edge CDNs. We have validated our core thesis through 8 baseline experiments, verified the RFC 9002 crossover boundary, explored extreme stress limits, and prototyped lock-free v2 optimizations for Milestone 3. We also have our live Streamlit dashboard running and ready for demonstration. Thank you very much, and we are happy to take any questions."
+        };
+
+        function showSlide(num) {
+            if (num < 1 || num > totalSlides) return;
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById(`slide-${num}`);
+            if (target) {
+                target.classList.add('active');
+                currentSlide = num;
+                document.getElementById('slide-counter').textContent = `Slide ${num} / ${totalSlides}`;
+                document.getElementById('btn-prev').disabled = (num === 1);
+                document.getElementById('btn-next').disabled = (num === totalSlides);
+                updateNotes();
+                updateOverviewHighlight();
+            }
+        }
+
+        function changeSlide(direction) {
+            showSlide(currentSlide + direction);
+        }
+
+        function toggleNotes() {
+            const panel = document.getElementById('notes-panel');
+            const btn = document.getElementById('btn-notes');
+            panel.classList.toggle('active');
+            btn.classList.toggle('active');
+        }
+
+        function updateNotes() {
+            const content = document.getElementById('notes-content');
+            content.textContent = speakerNotes[currentSlide] || "No speaker notes recorded for this slide.";
+        }
+
+        function toggleOverview() {
+            const modal = document.getElementById('overview-modal');
+            const btn = document.getElementById('btn-overview');
+            modal.classList.toggle('active');
+            btn.classList.toggle('active');
+        }
+
+        function buildOverviewGrid() {
+            const grid = document.getElementById('overview-grid');
+            grid.innerHTML = '';
+            for (let i = 1; i <= totalSlides; i++) {
+                const s = document.getElementById(`slide-${i}`);
+                const title = s ? s.querySelector('.slide-title')?.textContent || `Slide ${i}` : `Slide ${i}`;
+                const card = document.createElement('div');
+                card.className = `thumb-card ${i === currentSlide ? 'active' : ''}`;
+                card.id = `thumb-${i}`;
+                card.onclick = () => { showSlide(i); toggleOverview(); };
+                card.innerHTML = `
+                    <div class="thumb-num">SLIDE ${i.toString().padStart(2, '0')}</div>
+                    <div class="thumb-title">${title}</div>
+                `;
+                grid.appendChild(card);
+            }
+        }
+
+        function updateOverviewHighlight() {
+            document.querySelectorAll('.thumb-card').forEach((c, idx) => {
+                c.classList.toggle('active', (idx + 1) === currentSlide);
+            });
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                e.preventDefault();
+                changeSlide(1);
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                e.preventDefault();
+                changeSlide(-1);
+            } else if (e.key === 's' || e.key === 'S') {
+                toggleNotes();
+            } else if (e.key === 'o' || e.key === 'O') {
+                toggleOverview();
+            } else if (e.key === 'f' || e.key === 'F') {
+                toggleFullscreen();
+            } else if (e.key === 'Escape') {
+                const modal = document.getElementById('overview-modal');
+                if (modal.classList.contains('active')) toggleOverview();
+            } else if (e.key === 'Home') {
+                showSlide(1);
+            } else if (e.key === 'End') {
+                showSlide(totalSlides);
+            }
+        });
+
+        // Initialize
+        buildOverviewGrid();
+        updateNotes();
+    </script>
+</body>
+</html>
